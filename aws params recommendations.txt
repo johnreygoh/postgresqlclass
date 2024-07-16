@@ -1,0 +1,59 @@
+aws rds
+
+safe settings? - default (dynamically calculated by aws)
+
+recommended settings?
+
+1. shared_buffers
+-Set to a reasonable fraction of available memory, typically 25% to 40% of total system memory.
+-For AWS RDS PostgreSQL, this is automatically managed based on instance class and allocated memory.
+
+2. work_mem
+-Set to a size sufficient for sorting and hash joins.
+-Start with a low value (e.g., 4MB) and increase as needed based on query requirements and available memory.
+
+3. maintenance_work_mem
+-Set to a size sufficient for maintenance operations like VACUUM, ANALYZE, and index creation.
+-Start with a moderate value (e.g., 128MB to 1GB) depending on your database size and workload.
+
+4. effective_cache_size
+-Set to a size representing the available disk cache, typically 50% to 75% of total system memory.
+-Helps PostgreSQL's query planner estimate the cost of accessing data pages.
+
+5. checkpoint_completion_target
+-Adjust between 0.5 to 0.9 to balance checkpoint completion time and throughput.
+-Higher values can reduce I/O spikes during checkpoints but might prolong checkpoint completion.
+
+6. max_connections
+-Set to a value based on expected concurrent connections and system resources.
+-AWS RDS PostgreSQL has a default limit that varies by instance type.
+
+7. autovacuum
+-Ensure autovacuum is enabled (autovacuum = on) to manage table and index vacuuming automatically.
+-Adjust autovacuum settings (autovacuum_max_workers, autovacuum_naptime, etc.) based on workload and database size.
+
+8. random_page_cost and seq_page_cost
+-Adjust based on your storage characteristics (SSD vs. HDD).
+-For SSDs, random_page_cost can be lowered to around 1.1, and seq_page_cost to 1.0.
+
+9. temp_buffers
+-Set to a size appropriate for temporary data storage in memory.
+-Start with a low value (e.g., 8MB) and adjust based on temporary table usage.
+
+10. max_wal_size and min_wal_size
+-Set max_wal_size to a size sufficient for retaining WAL (Write-Ahead Log) segments.
+-Adjust min_wal_size to control the minimum size of the WAL segment.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
