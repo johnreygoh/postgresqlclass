@@ -1,0 +1,210 @@
+postgresql with linux
+1. virtualbox
+2. virtualbox extension pack
+https://www.virtualbox.org/wiki/Downloads
+
+3. oracle linux 9
+https://yum.oracle.com/ISOS/OracleLinux/OL9/u5/x86_64/OracleLinux-R9-U5-x86_64-dvd.iso
+
+4. access and permission to download packages via dnf/yum
+
+-----------------------------------------------------------------
+
+PostgreSQL
+1. SQL DML,DDL,DQL (same across sql-based)
+2. scripting (a lil diff with sql database)
+ms sql (T-SQL)
+oracle database (pl/sql)
+mysql
+postgresql
+
+3. administration
+4. performance tuning
+
+----------------------------------------------------------
+postgresql v12 - v17
+
+hierarchy:
+
+Instance  =  service
+-cluster (data directory = 1 folder with data blocks)
+windows: 
+C:\Program Files\PostgreSQL\17\data
+C:\Program Files\PostgreSQL\17\bin
+
+linux: 
+/var/lib/pgsql/17/data
+/usr/pgsql-17/bin
+
+ -data blocks
+  -pages
+
+
+---------------------------------------------------
+
+connect to a data cluster
+psql -U postgres -h 192.168.23.2 
+default cluster: 
+C:\Program Files\PostgreSQL\17\data
+/var/lib/pgsql/17/data
+
+psql -U postgres -h 192.168.23.2 -D /mycluster1/data
+------------------------------------------------------
+
+note:
+1. cluster? / data directory
+-default?
+-additional cluster?
+
+2. postgresql bin directory
+linux: 
+/var/lib/pgsql/17/data	<-- def cluster
+/usr/pgsql-17/bin <-- binaries / commands 
+
+3. status/start/reload/restart/stop/enable/disable postgres service
+linux:
+// check all services related to "postgres"
+sudo systemctl list-unit-files --type=service | grep "postgres"
+
+// service management
+sudo systemctl status postgres-17
+sudo systemctl stop postgres-17
+sudo systemctl start postgres-17
+sudo systemctl reload postgres-17
+sudo systemctl restart postgres-17
+sudo systemctl enable postgres-17
+
+4. processes
+// check all processes related to postgres
+ps -ef | grep "postgres"
+
+5. connection details
+user: postgres (user add by default)
+host: localhost / remote by (loc ip / public ip / public dns)
+dataDirectory: /mycluster1
+
+connect:
+-psql (CLI)
+psql -U postgres -h 192.168.254.100 -D /mycluster1
+
+-pgadmin (UI)
+
+6. server parameters (memory allocation, port, path, buffer size)
+postgresql.conf
+/var/lib/pgsql/17/data/postgresql.conf
+
+postgresql.auto.conf
+/var/lib/pgsql/17/data/postgresql.auto.conf
+
+7. log files
+linux:
+/var/lib/pgsql/17/data/log
+/var/lib/pgsql/17/data/pg_wal
+/var/lib/pgsql/17/data/pg_xact
+
+8. 4 configuration files
+pg_hba.conf		<- network config
+pg_ident.conf		<- user mapping
+postgresql.conf		<- manually editable file for server params
+postgresql.auto.conf 	<- edit this using alter system set command
+
+------------------------------------------------------------------------
+
+CLI
+
+// check your distro
+cat /etc/*-release
+RHEL 8.10
+
+1. update
+sudo dnf update
+
+2. follow steps in the postgresql for the installation
+3. check if started
+sudo systemctl status postgresql-17
+
+// check services related to "postgres"
+sudo systemctl list-unit-files --type=service | grep "postgres"
+
+// check process related to "postgres"
+ps -ef | grep "postgres"
+
+// see users
+cat /etc/passwd
+
+4. allow remote connections
+/var/lib/pgsql/17/data/pg_hba.conf
+
+sudo nano /var/lib/pgsql/17/data/pg_hba.conf
+
+// add to end of line
+host    all             all             0.0.0.0/0               md5
+
+vm(ssh:22)<---azure sec group(inbound ports:22)-----------ssh/putty
+vm(pg:5432)<-----azure sec group(inbound ports:5432)-------psql client(windows) 
+
+5. add port 5432 to your firewall
+sudo firewall-cmd --add-port=5432/tcp --permanent
+sudo firewall-cmd --reload
+sudo firewall-cmd --zone=public --list-services
+sudo firewall-cmd --zone=public --list-ports
+
+6. try connecting using psql
+sudo -i -u postgres
+
+postgres=#
+
+7. reset postgres user password
+postgres=# \password postgres
+postgres=# \q
+
+psql -U postgres -h localhost
+
+ssh->psql(localhost)
+psql(remote ip)
+pgadmin(remote ip)
+
+8. add postgresql bin to user profile path
+[main user account]
+sudo nano ~/.bash_profile
+
+//add the ff line
+export PATH=/usr/pgsql-17/bin:$PATH
+
+// if nano: ctrl + o, enter, ctrl + x
+
+// call profile
+source ~/.bash_profile
+
+// or reopen terminal
+// try pg_ctl --help
+------------------------------------------------------------------
+[postgres user]
+sudo -i -u postgres
+nano ~/.bash_profile
+nano /var/lib/pgsql/.pgsql_profile	<-- edit this file
+
+//add the ff line
+export PATH=/usr/pgsql-17/bin:$PATH
+
+// if nano: ctrl + o, enter, ctrl + x
+
+// call profile
+source ~/.bash_profile
+
+// or reopen terminal
+// try pg_ctl --help
+
+
+
+
+
+9. cluster
+10. database objects
+
+
+
+
+
+
+
