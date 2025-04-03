@@ -1,0 +1,332 @@
+Cluster
+1. default cluster
+// details cluster
+pg_controldata
+
+// default location
+/var/lib/pgsql/17/data
+
+// *location psql / postgres
+which psql
+which postgres
+which pg_controldata 
+
+// postgres home directory
+/var/lib/pgsql
+
+// create another cluster (postgres account)
+1. create a new directory in ~/17/
+mkdir /var/lib/pgsql/17/cluster2
+chown postgres:postgres /var/lib/pgsql/17/cluster2
+ls -l
+
+2. initialize new cluster
+initdb -D /var/lib/pgsql/17/cluster2
+
+3. stop cluster
+pg_ctl stop -D /var/lib/pgsql/17/data -m [shutdown mode]
+
+smart	:	disallow new connection, 
+		let existing sessions end work normally
+
+fast(default)	:	disallow new connection,
+			abort current transactions, exits gracefully	
+
+immediate	:	quits all w/o proper shutdown
+
+4. start cluster
+pg_ctl start -D /var/lib/pgsql/17/data
+
+5. check running clusters
+ps -ef | grep "postgres"
+
+----------------------------------------------
+
+server parameters
+
+files:
+/var/lib/pgsql/17/postgresql.conf
+/var/lib/pgsql/17/postgresql.auto.conf
+
+// note: run linux cmd in postgres prompt
+\! <cmd>
+
+// use show command
+show all;
+show data_directory;
+
+// query catalog table (pg_settings)
+// check attributes of pg_settings?
+\d pg_settings
+
+sample queries:
+select name,setting,pending_restart 
+from pg_settings
+where name like '%buff%';
+------------------------------------
+//change param
+alter system set work_mem='10MB';
+
+reload vs restart
+reload=applies changes w/o restarting server
+
+//to reload:
+[in terminal]
+pg_ctl reload
+
+[in psql]
+select pg_reload_conf();
+
+//to restart:
+[in terminal]
+pg_ctl restart
+
+//or specific cluster
+pg_ctl restart -D /var/lib/cluster2
+
+//or
+sudo systemctl restart postgresql-17
+
+-----------------------------------------------
+
+// "reset" auto config (erase auto config)
+alter system reset work_mem;
+alter system reset all;
+ 
+----------------------------------------------------
+postgres=#
+
+sql commands (;)
+select ...
+insert
+create
+drop
+alter
+...
+
+psql commands (;)
+show all;
+exit
+
+psql metacommands (no ;)
+\?
+\q	quits prompt	
+\l	list databases
+\dt	list tables	
+\d	describe table (see column names)
+\dn	list schema
+
+
+platform commands (linux / windows)
+\! cls
+\! clear
+\! mkdir folder1
+
+catalog tables (pg_*), information/metadata of objects
+// inside pg_catalog
+
+//show all catalog tables
+\dt pg_catalog.*
+
+pg_database
+pg_settings
+
+
+
+---------------------------------------------------------
+create objects and privileges
+
+instance + service
+ - cluster (/data)
+   - postgres	(default database)
+   - template0	(read-only template for new database)
+   - template1	(writable/modifiable template for new databases)
+   - database1
+     - public (default)
+     - schema1
+       - table1
+	 - column1
+         - column2
+       - table2
+     - schema2
+
+-------------------------------------------------------------------
+
+create / drop database
+//psql
+create database database1
+drop database database1
+
+//database connection = process
+pg_terminate_backend(process id)
+
+//terminate all process related to database name
+select pg_terminate_backend(pid) 
+from pg_stat_activity 
+where datname='database1';
+
+//terminal
+createdb database1
+dropdb database1
+dropdb database1 -f
+
+-----------------------------------------
+
+//create user and grant privileges
+
+user = role
+
+user (create user) <--- privileges
+
+recommended
+role (create role) <--- privileges
+user <-- role
+
+role:
+-used as a user
+-assigned to a user
+-assigned to another role
+
+\du
+create role superuser1 with login superuser createrole createdb;
+\password superuser1
+
+[create user from terminal]
+createduser --interactive user2
+
+---------------------------------------------------
+
+psql 
+-U username
+-h ipadd
+-p port
+-D cluster
+-d database
+
+
+privileges vs roles
+
+privileges
+login,superuser,createrole,createdb
+
+permissions (grant/revoke)
+connect
+usage
+
+grant / revoke permissions:
+grant connect on database postgres to user1;
+revoke connect on database postgres to user1;
+
+// see other permissions
+select distinct privilege_type
+from information_schema.role_table_grants;
+
+-----------------------------------------------
+
+// to login using another user
+psql -U user1 -h localhost -d postgres
+
+---------------------------------------------------
+
+global privileges (cluster):
+superuser, login, createdb, createrole
+create role user1 with login superuser createdb;
+
+database privileges (database):
+connect, usage
+grant connect on database postgres to user1;
+grant connect on database all to user1;
+revoke connect on database all from user1;
+
+schema-level privileges
+grant usage,connect on schema schemaname to user1;
+
+table privileges (schema/table):
+ DELETE
+ INSERT
+ REFERENCES
+ SELECT
+ TRIGGER
+ TRUNCATE
+ UPDATE
+
+grant select,insert,update,delete on all tables in schema public to user1;
+grant select,insert,update,delete on table table1 in schema public to user1;
+revoke select,insert,update,delete on all tables in schema public from user1;
+
+-------------------------------------------------------------
+
+instance
+cluster
+database 
+schema
+-public
+-pg_catalog
+
+
+schema, table and constraints
+
+// schema
+connect to the database
+
+//option 1
+psql -d database1
+psql -d database1 -U user1
+
+
+//option 2 (in psql)
+\c <database name> 
+
+//check current user (in psql)
+select current_user;
+
+//create/drop schema
+create schema <schemaname>
+drop schema <schemaname>
+*cannot drop schema with objects
+
+//create table
+create table schema.tablename
+create table hr.employees
+
+//check tables
+\dt
+\dt schema.*
+\dt *.*
+
+// drop schema with objects
+drop schema schema1 cascade;
+
+// contraints
+-during table creation
+-after table creation
+
+// sample setting constraints during creation
+create table mis.table3
+(
+id int constraint emp_pk primary key,
+empname varchar(100) not null,
+unitno int,
+constraint unitno_uq unique (unitno),
+constraint empname_uq unique (empname)
+);
+
+// alter table to define constraints
+ALTER TABLE IF EXISTS mis.table4
+    ALTER COLUMN empname SET NOT NULL;
+
+ALTER TABLE IF EXISTS mis.table4
+    ADD CONSTRAINT id_pk PRIMARY KEY (id);
+
+ALTER TABLE IF EXISTS mis.table4
+    ADD CONSTRAINT unitno_uq UNIQUE (unitno);
+
+alter table mis.table4 
+	drop constraint unitno2_uq;
+
+
+\d mis.table4
+
+
+
+
