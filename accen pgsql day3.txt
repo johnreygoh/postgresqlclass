@@ -1,0 +1,292 @@
+// switch user
+su postgres
+source ~/.bash_profile
+
+sudo -i -u postgres
+
+// forgot password postgres?
+$ sudo passwd postgres	<-- reset password for linux (not enough!)
+
+1. reset postgres password
+
+// modify /var/lib/pgsql/17/data/pg_hba.conf
+// add
+host	postgres	postgres	0.0.0.0/0	trust
+
+// restart postgresql service
+sudo systemctl restart postgresql-17
+psql -U postgres
+postgres=# \password postgres
+
+// modify /var/lib/pgsql/17/data/pg_hba.conf
+// remove
+host	postgres	postgres	0.0.0.0/0	trust
+
+
+2. more psql metacommands
+3. table inheritance, partitioning, copy tables
+
+		main_table
+		   |
+	----------child----------
+	|	|	|	|
+	t1	t2	t3	t4	<---- values inserted + main_table
+					<- "only"
+					<- child can have additional cols
+
+
+		orders			<- input here
+		   |
+	-------------------------
+	|			|
+	agent			online	<- input
+
+//create tables
+create table orders (
+	orderno serial,
+	flightname varchar(100), 
+	boarding varchar(100), 
+	status varchar(100), 
+	source varchar(100)
+);
+
+create table online_booking (price int) inherits(orders);
+create table agent_booking (commision int) inherits(orders);
+
+===========================================================================
+
+partitioning: (by how, year? department? client name?)
+1 table = 500 million records
+	|
+	V
+10 tables = 50 million records
+	
+
+partitioning via inheritance
+
+		sales (parent) / consolidated
+		|
+	--------------------------------
+	|	|	|	|	|
+	2020	2021	2022	2023	2024
+
+------------------------------------------------
+demo:
+
+bookings(parent) <------ single input
+	|
+	V
+	function + trigger
+	|
+	V
+jan_bookings
+feb_bookings
+----------------------------------------------------------------------------------
+
+create table bookings(
+	flightno int,
+	flightname varchar(100),
+	booking_date timestamp
+);
+
+
+create table jan_bookings
+(check(booking_date >= date '2025-01-01' and booking_date <= date '2025-01-28')) 
+inherits(bookings);
+
+
+create table feb_bookings
+(check(booking_date >= date '2025-02-01' and booking_date <= date '2025-02-28')) 
+inherits(bookings);
+
+----------------------------------------
+
+indexing = search / sorting / filter
+
+//create index on child tables
+create index booking_jan_idx on jan_bookings using btree(booking_date);
+create index booking_feb_idx on feb_bookings using btree(booking_date);
+\d jan_bookings
+
+//ms sql = T-SQL, oracle = pl/sql, postgresql = plpgsql
+
+//create function
+create or replace function on_insert() 
+returns trigger 
+as
+$$
+begin
+	if(new.booking_date >= date '2025-01-01' and new.booking_date <= date '2025-01-31') then
+	insert into jan_bookings values (new.*);
+	elsif(new.booking_date >= date '2025-02-01' and new.booking_date <= date '2025-02-28') then
+	insert into feb_bookings values (new.*);
+	else
+	raise exception 'Enter valid booking date (Jan-Feb only)!';
+	end if;
+
+	return null;
+
+end;
+$$ LANGUAGE plpgsql;
+
+
+// create trigger
+create trigger booking_entry before insert on bookings for each row execute procedure on_insert();
+
+
+-----------------------------------------------------------------------------------
+
+table partitioning
+
+"range partitioning"
+//main table
+create table sales 
+(id serial,xact_date date not null, amount int) 
+partition by range(xact_date);
+
+//tables for monthly partitions
+create table jan_sales partition of sales
+for values from ('2025-01-01') to ('2025-02-1');
+
+create table feb_sales partition of sales
+for values from ('2025-02-01') to ('2025-03-1');
+
+create table mar_sales partition of sales
+for values from ('2025-03-01') to ('2025-04-1');
+
+create table default_sales partition of sales default;
+
+
+*partition pruning
+
+--------------------------------------------------------
+copy table
+// with data
+create table myjansales as table jan_sales;
+
+// no data
+create table myjansales as table jan_sales with no data;
+
+===========================================================
+
+4. tablespaces
+
+//physical location where table files are stored
+
+pg_default = cluster directory
+pg_global = system tables
+
+-tables stored by default in pg_default tablespace
+
+// create tablespace
+sudo mkdir -p /opt/app/makati
+sudo chown postgres:postgres /opt/app/makati
+create tablespace makati location '/opt/app/makati';
+select tablename,tablespace from pg_tables where tablespace='makati';
+drop tablespace makati;
+
+
+5. backup and restore
+
+backup:
+offline backup
+
+pg_dump
+-single database
+-cluster
+
+demo:
+database1
+-mis
+  -table3
+  -table4	
+
+//pgadmin backup
+pg_dump 
+--file "C:\\Users\\core360\\DOCUME~1\\DATABA~1" 
+--host "192.168.254.197" 
+--port "5432" 
+--username "postgres" 
+--no-password 
+--format=c 
+--large-objects 
+--verbose "database1"
+
+
+//backup single database
+[terminal]
+pg_dump database1 > /var/lib/pgsql/17/backups/database1backup
+pg_dump -U postgres database1 > /var/lib/pgsql/17/backups/database1backup.sql
+pg_dump -U postgres database1 > /var/lib/pgsql/17/backups/database1backup.dump
+
+
+// backup default (postgres) database
+pg_dump -U postgres > /var/lib/pgsql/17/backups/clusterall.sql
+pg_dump -U postgres > /var/lib/pgsql/17/backups/clusterall.dump
+
+//backup cluster
+[terminal]
+pg_dumpall -U postgres > /var/lib/pgsql/17/backups/clusterall.sql
+pg_dumpall -U postgres > /var/lib/pgsql/17/backups/clusterall.dump
+
+
+//schedule backups
+cron
+
+// compressed backup
+[gzip]
+pg_dumpall -U postgres | gzip > /var/lib/pgsql/17/backups/clusterall.gz
+
+// restore 1 table from backup
+// non-text based backup
+pg_restore 
+-U postgres 
+-t mis.table3 
+-d database1 /var/lib/pgsql/17/backups/database1backup.dump
+
+// text-based (.sql)
+[psql]
+\i /var/lib/pgsql/17/backups/database1backup.sql
+
+6. maintenance
+
+vacuum and vacuum full
+-reclaims storage occupied by dead rows/tuples
+-shrink database size
+
+vacuum
+-reclaims and makes the space available
+vacuum <tablename>
+
+vacuum full
+-rewrite full contents on disk without extra space
+vacuum(full,verbose) <tablename>
+
+reindexing
+// column as index
+reindex index <column as index contraint>
+
+//autovacuum???
+
+---------------------------------------------------------------
+
+performance recommendations
+- performance postgresql
+	- server specs / cloud vm
+	- linux optimization (selinux / partition mgmt)
+	- postgres server parameter
+
+
+// patch update
+sudo dnf update postgresql17-server 
+
+17.10 -> 17.11
+
+
+
+
+
+
+
+
+
